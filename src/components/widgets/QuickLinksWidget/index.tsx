@@ -292,7 +292,7 @@ const QuickLinksWidget: React.FC<QuickLinksWidgetProps> = ({ width, height, conf
                   <img 
                     src={link.favicon}
                     alt=""
-                    className={`w-4 h-4 mr-2.5 ${
+                    className={`size-4 mr-2.5 ${
                       loadingLinkIds.includes(link.id) ? 'animate-pulse' : ''
                     }`}
                     loading="lazy"
@@ -435,7 +435,7 @@ const QuickLinksWidget: React.FC<QuickLinksWidgetProps> = ({ width, height, conf
                 <img 
                   src={editingLink.favicon}
                   alt=""
-                  className="w-5 h-5"
+                  className="size-5"
                   loading="lazy"
                 />
                 <span className="text-sm text-gray-500 dark:text-gray-400 truncate">

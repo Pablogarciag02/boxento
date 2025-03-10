@@ -619,7 +619,7 @@ const SpotifyWidget: React.FC<SpotifyWidgetProps> = ({ width, height, config }) 
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
               aria-label="Previous track"
             >
-              <SkipBack className="w-5 h-5" />
+              <SkipBack className="size-5" />
             </button>
             <button 
               onClick={handlePlayPause}
@@ -627,9 +627,9 @@ const SpotifyWidget: React.FC<SpotifyWidgetProps> = ({ width, height, config }) 
               aria-label={playbackState.isPlaying ? "Pause" : "Play"}
             >
               {playbackState.isPlaying ? (
-                <Pause className="w-5 h-5" />
+                <Pause className="size-5" />
               ) : (
-                <Play className="w-5 h-5" />
+                <Play className="size-5" />
               )}
             </button>
             <button 
@@ -637,7 +637,7 @@ const SpotifyWidget: React.FC<SpotifyWidgetProps> = ({ width, height, config }) 
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
               aria-label="Next track"
             >
-              <SkipForward className="w-5 h-5" />
+              <SkipForward className="size-5" />
             </button>
           </div>
         )}
