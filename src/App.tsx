@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Moon, Sun } from 'lucide-react'
+import { Plus, Moon, Sun, LogOut, LogIn } from 'lucide-react'
 // Import GridLayout components - direct imports to avoid runtime issues
 import GridLayout from 'react-grid-layout'
 // @ts-ignore - The types don't correctly represent the module structure
@@ -15,6 +15,10 @@ import {
 import WidgetErrorBoundary from '@/components/widgets/common/WidgetErrorBoundary'
 import WidgetSelector from '@/components/widgets/common/WidgetSelector'
 import { configManager } from '@/lib/configManager'
+import { useAuth, AuthContextType } from '@/lib/AuthContext'
+import { AuthDialog } from '@/components/auth/AuthDialog'
+import { saveDashboard, loadDashboard } from '@/lib/dashboardService'
+import { Button } from '@/components/ui/button'
 
 interface WidgetCategory {
   [category: string]: WidgetConfig[];
@@ -29,6 +33,10 @@ const cols = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
 const ResponsiveReactGridLayout = WidthProvider(Responsive);
 
 function App() {
+  // Add auth state
+  const { currentUser, logout } = useAuth() as AuthContextType;
+  const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
+  
   // Add a class to the body for dark mode background
   useEffect(() => {
     document.body.className = 'bg-gray-100 dark:bg-slate-900 min-h-screen';
@@ -775,6 +783,45 @@ function App() {
     );
   };
 
+  // Load user's dashboard from Firebase when they log in
+  useEffect(() => {
+    const fetchUserDashboard = async () => {
+      if (!currentUser) return;
+      
+      try {
+        const savedDashboard = await loadDashboard(currentUser.uid);
+        if (savedDashboard) {
+          setLayouts(savedDashboard.layouts);
+          setWidgets(savedDashboard.widgets);
+        }
+      } catch (error) {
+        console.error("Error loading dashboard:", error);
+      }
+    };
+    
+    fetchUserDashboard();
+  }, [currentUser]);
+  
+  // Save dashboard to Firebase when layouts or widgets change
+  useEffect(() => {
+    const saveDashboardToFirebase = async () => {
+      if (!currentUser) return;
+      
+      // Don't save if there's no meaningful data
+      if (Object.keys(layouts).length === 0 || widgets.length === 0) return;
+      
+      try {
+        await saveDashboard(currentUser.uid, layouts, widgets);
+      } catch (error) {
+        console.error("Error saving dashboard:", error);
+      }
+    };
+    
+    // Debounce the save operation to avoid too many writes
+    const timeoutId = setTimeout(saveDashboardToFirebase, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [layouts, widgets, currentUser]);
+
   return (
     <div className={`app ${theme === 'dark' ? 'dark' : ''}`} data-theme={theme}>
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white overflow-x-hidden">
@@ -785,6 +832,31 @@ function App() {
             </div>
             
             <div className="header-right">
+              {currentUser ? (
+                <div className="flex items-center gap-2 mr-2">
+                  <span className="text-sm hidden md:inline">{currentUser.email}</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => logout()}
+                    className="flex items-center gap-1"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden md:inline">Logout</span>
+                  </Button>
+                </div>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setIsAuthDialogOpen(true)}
+                  className="flex items-center gap-1 mr-2"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span className="hidden md:inline">Sign In</span>
+                </Button>
+              )}
+              
               <button 
                 onClick={toggleWidgetSelector}
                 className="group flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500 dark:bg-blue-600 text-white 
@@ -868,6 +940,12 @@ function App() {
             </div>
           </div>
         </main>
+
+        {/* Auth Dialog */}
+        <AuthDialog 
+          isOpen={isAuthDialogOpen} 
+          onClose={() => setIsAuthDialogOpen(false)} 
+        />
       </div>
     </div>
   )

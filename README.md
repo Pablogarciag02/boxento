@@ -14,6 +14,9 @@ Boxento is a lightweight, open-source, customizable start page for tech-savvy, a
   - [Built-in Widgets](#built-in-widgets)
   - [Creating Your Own Widgets](#creating-your-own-widgets)
   - [Resizable Widgets](#resizable-widgets)
+- [Authentication](#authentication)
+  - [Firebase Setup](#firebase-setup)
+  - [User Authentication](#user-authentication)
 - [Package Management](#package-management)
 - [Hosting Boxento](#hosting-boxento)
   - [Hosting Yourself](#hosting-yourself)
@@ -135,6 +138,39 @@ All widgets are resizable with react-grid-layout:
 - **Size Enforcement**: The application enforces the minimum 2x2 size constraint for all widgets
 
 For detailed information about widget sizing and development, see the [Widget Development Guide](docs/WIDGET_DEVELOPMENT.md).
+
+## Authentication
+
+Boxento supports user authentication and cloud storage of dashboard configurations using Firebase. This allows users to access their personalized dashboard from any device.
+
+### Firebase Setup
+
+To set up Firebase for your Boxento instance:
+
+1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
+2. Register a web app in your Firebase project
+3. Enable Authentication (Email/Password and Google Sign-in methods)
+4. Set up Firestore Database with appropriate security rules
+5. Add your Firebase configuration to the `.env` file:
+
+```
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+```
+
+### User Authentication
+
+Boxento provides a simple authentication flow:
+
+1. Users can sign up with email/password or Google authentication
+2. Dashboard configurations are automatically saved to the cloud
+3. Users can access their dashboard from any device by logging in
+4. All data is securely stored and accessible only to the authenticated user
 
 ## Package Management
 
