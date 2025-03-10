@@ -95,15 +95,15 @@ export function SignupForm({ onToggleForm, onSuccess }: SignupFormProps) {
   return (
     <div className="w-full">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl">Create an account</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-2xl font-semibold tracking-tight">Create an account</CardTitle>
+        <CardDescription className="text-muted-foreground">
           Enter your details to create your account
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-foreground">Email</Label>
             <Input
               id="email"
               type="email"
@@ -111,37 +111,40 @@ export function SignupForm({ onToggleForm, onSuccess }: SignupFormProps) {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
               required
               placeholder="you@example.com"
+              className="bg-background border-input"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-foreground">Password</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
               required
+              className="bg-background border-input"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm Password</Label>
+            <Label htmlFor="confirm-password" className="text-foreground">Confirm Password</Label>
             <Input
               id="confirm-password"
               type="password"
               value={confirmPassword}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
               required
+              className="bg-background border-input"
             />
           </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
             {isLoading ? 'Creating account...' : 'Create Account'}
           </Button>
         </form>
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
+            <span className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-background px-2 text-muted-foreground">
@@ -153,7 +156,7 @@ export function SignupForm({ onToggleForm, onSuccess }: SignupFormProps) {
         <SocialLoginButtons />
 
         <div className="text-center">
-          <Button variant="link" onClick={onToggleForm} type="button">
+          <Button variant="link" onClick={onToggleForm} type="button" className="text-primary">
             Already have an account? Sign in
           </Button>
         </div>

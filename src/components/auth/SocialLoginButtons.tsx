@@ -12,7 +12,7 @@ const GoogleIcon = () => (
 );
 
 const GithubIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#333333" xmlns="http://www.w3.org/2000/svg">
+  <svg className="w-5 h-5 dark:fill-white" viewBox="0 0 24 24" fill="#333333" xmlns="http://www.w3.org/2000/svg">
     <path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
   </svg>
 );
@@ -30,7 +30,7 @@ const FacebookIcon = () => (
 );
 
 const AppleIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#000000" xmlns="http://www.w3.org/2000/svg">
+  <svg className="w-5 h-5 dark:fill-white" viewBox="0 0 24 24" fill="#000000" xmlns="http://www.w3.org/2000/svg">
     <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.52-3.2 0-1.44.71-2.23.51-3.08-.4C3.11 15.46 4.05 8.08 9.25 7.87c1.28.08 2.19.68 2.97.72.97-.12 1.88-.74 3.11-.82 1.89-.13 3.29.71 4.19 1.97-3.29 2.05-2.76 6.4.66 7.87-.59 1.4-1.35 2.76-2.13 3.67zM12.03 7.67C11.88 5.34 13.73 3.47 15.89 3.3c.26 2.56-2.26 4.49-3.86 4.37z"/>
   </svg>
 );
@@ -59,50 +59,50 @@ export function SocialLoginButtons() {
       <Button 
         variant="outline" 
         onClick={googleSignIn}
-        className="flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900 border dark:border-gray-800"
       >
         <GoogleIcon />
-        Google
+        <span className="dark:text-gray-300">Google</span>
       </Button>
       <Button 
         variant="outline" 
         onClick={githubSignIn}
-        className="flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900 border dark:border-gray-800"
       >
         <GithubIcon />
-        GitHub
+        <span className="dark:text-gray-300">GitHub</span>
       </Button>
       <Button 
         variant="outline" 
         onClick={twitterSignIn}
-        className="flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900 border dark:border-gray-800"
       >
         <TwitterIcon />
-        Twitter
+        <span className="dark:text-gray-300">Twitter</span>
       </Button>
       <Button 
         variant="outline" 
         onClick={facebookSignIn}
-        className="flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900 border dark:border-gray-800"
       >
         <FacebookIcon />
-        Facebook
+        <span className="dark:text-gray-300">Facebook</span>
       </Button>
       <Button 
         variant="outline" 
         onClick={appleSignIn}
-        className="flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900 border dark:border-gray-800"
       >
         <AppleIcon />
-        Apple
+        <span className="dark:text-gray-300">Apple</span>
       </Button>
       <Button 
         variant="outline" 
         onClick={microsoftSignIn}
-        className="flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900 border dark:border-gray-800"
       >
         <MicrosoftIcon />
-        Microsoft
+        <span className="dark:text-gray-300">Microsoft</span>
       </Button>
     </div>
   );
