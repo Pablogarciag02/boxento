@@ -1,14 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
 import { X } from 'lucide-react';
 import { AuthForm } from './AuthForm';
+import { PasswordReset } from './PasswordReset';
+import { PhoneAuth } from './PhoneAuth';
 
 interface AuthDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type AuthView = 'auth' | 'reset-password' | 'phone';
+
 export function AuthDialog({ isOpen, onClose }: AuthDialogProps) {
+  const [view, setView] = useState<AuthView>('auth');
+
+  const handleBack = () => {
+    setView('auth');
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[425px] p-0 gap-0">
@@ -16,7 +26,25 @@ export function AuthDialog({ isOpen, onClose }: AuthDialogProps) {
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </DialogClose>
-        <AuthForm onSuccess={onClose} />
+        {view === 'auth' && (
+          <AuthForm 
+            onSuccess={onClose}
+            onForgotPassword={() => setView('reset-password')}
+            onPhoneAuth={() => setView('phone')}
+          />
+        )}
+        {view === 'reset-password' && (
+          <PasswordReset 
+            onBack={handleBack}
+            onSuccess={onClose}
+          />
+        )}
+        {view === 'phone' && (
+          <PhoneAuth 
+            onBack={handleBack}
+            onSuccess={onClose}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

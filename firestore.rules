@@ -1,9 +1,37 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow users to read and write only their own dashboard data
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidDashboardData() {
+      return request.resource.data.keys().hasAll(['widgets', 'layout', 'updatedAt']) &&
+             request.resource.data.updatedAt is timestamp;
+    }
+
+    // User dashboard data
     match /userDashboards/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidDashboardData();
+      allow update: if isOwner(userId) && isValidDashboardData();
+      allow delete: if isOwner(userId);
+    }
+
+    // User settings
+    match /userSettings/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+    }
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 } 
