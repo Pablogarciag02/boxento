@@ -169,15 +169,78 @@ body.dragging-active {
 
 /* Global Widget Container */
 .widget-container {
+  height: 100%;
+  background: white;
   border-radius: var(--border-radius-standard);
-  @apply shadow-md p-4 overflow-hidden h-full w-full flex flex-col relative border border-black/5 dark:border-white/5 break-words bg-white dark:bg-slate-800;
-  /* Prevent text selection during interaction */
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -khtml-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: transform 0.6s cubic-bezier(0.25, 0.1, 0.25, 1.2), box-shadow 0.5s cubic-bezier(0.25, 0.1, 0.25, 1.2);
+}
+
+.react-grid-item.react-draggable-dragging {
+  z-index: 3;
+}
+
+/* Add a clean shadows class to reset shadows and backgrounds in widget */
+.widget-clean-shadows .widget-container * {
+  box-shadow: none !important;
+  background: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.widget-clean-shadows .widget-container {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Hide the resize handle when widget is being dragged or resized */
+.react-grid-item.react-draggable-dragging .react-resizable-handle,
+.react-grid-item.resizing .react-resizable-handle {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* Rebound animation */
+@keyframes widget-rebound {
+  0% {
+    transform: rotate(var(--last-rotation, 0deg));
+  }
+  70% {
+    transform: rotate(calc(var(--last-rotation, 0deg) * -0.2));
+  }
+  85% {
+    transform: rotate(calc(var(--last-rotation, 0deg) * 0.1));
+  }
+  100% {
+    transform: rotate(0deg) !important; /* Force final state with !important */
+  }
+}
+
+/* Apply rebound animation when drag stops or when explicitly triggered */
+.react-grid-item:not(.react-draggable-dragging) .widget-container,
+.widget-container.rebound-active {
+  animation: widget-rebound 0.6s cubic-bezier(0.25, 0.1, 0.25, 1.2);
+  transform: rotate(0deg) !important; /* Ensure final state is zero rotation */
+  /* Prevent React Grid Layout from adding transform styles during animation */
+  z-index: 5; 
+}
+
+/* Make sure we reset ALL transforms after animation completes */
+.react-grid-item:not(.react-draggable-dragging) .widget-container:not(.animating),
+.widget-container.rebound-active:not(.animating) {
+  transform: rotate(0deg) !important;
+  transition: box-shadow 0.3s ease-out;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Add a very strong override rule for widgets that should be fully reset */
+.widget-container:not(.animating):not(.react-draggable-dragging) {
+  transform: rotate(0deg) !important;
+  rotate: 0deg !important;
+  transition: box-shadow 0.3s ease-out !important;
 }
 
 /* Widget Interaction Styles */
@@ -375,15 +438,6 @@ body.react-grid-layout--resizing .react-grid-item:not(.resizing) {
   border-width: 0 !important;
   border-style: none !important;
   border-color: transparent !important;
-  border-radius: var(--border-radius-standard) !important;
-}
-
-/* When drag stops, animate back to normal with a spring effect */
-.react-grid-item.drag-rebound .widget-container {
-  transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1.5), box-shadow 0.5s ease !important;
-  transform: rotate(0deg) !important;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
-  border: none !important;
   border-radius: var(--border-radius-standard) !important;
 }
 
@@ -962,4 +1016,29 @@ body.react-grid-layout--resizing .react-resizable-handle {
 .react-grid-item.resizing .react-resizable-handle::after {
   border: none !important;
   background: transparent !important;
+}
+
+/* Layout styles with dragging state */
+.layout.is-dragging {
+  cursor: grabbing !important;
+}
+
+.layout.is-dragging .react-grid-item:not(.react-draggable-dragging) {
+  transition: none !important; /* Prevent other items from animating during drag */
+}
+
+/* Rebound animation */
+@keyframes widget-rebound {
+  0% {
+    transform: rotate(var(--last-rotation, 0deg));
+  }
+  70% {
+    transform: rotate(calc(var(--last-rotation, 0deg) * -0.2));
+  }
+  85% {
+    transform: rotate(calc(var(--last-rotation, 0deg) * 0.1));
+  }
+  100% {
+    transform: rotate(0deg) !important; /* Force final state with !important */
+  }
 }

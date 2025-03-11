@@ -496,135 +496,178 @@ function App() {
   
   // Add state to track dragging direction and current dragged widget
   const [dragDirection, setDragDirection] = useState<'left' | 'right' | null>(null);
-  const lastMousePos = useRef<{ x: number, y: number } | null>(null);
-  const dragThreshold = 5; // Minimum mouse movement to determine direction
+  const lastMousePos = useRef<{ x: number, y: number, time: number } | null>(null);
+  const dragVelocity = useRef<number>(0);
+  const maxRotation = 20; // Maximum rotation angle in degrees
   
-  // Update drag handlers to track direction
-  const handleDragStart = (layout: LayoutItem[], oldItem: LayoutItem, newItem: LayoutItem, placeholder: LayoutItem, event: MouseEvent): void => {
-    // Add a class to the body to indicate we're dragging
-    document.body.classList.add('dragging');
-    document.body.classList.add('react-grid-layout--dragging');
+  // Add this to the component's state management
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  
+  // Use isDragging in handleDragStart
+  const handleDragStart = (): void => {
+    // Set dragging state to true when drag begins
+    setIsDragging(true);
     
-    // Clean up any lingering animation classes first
-    document.querySelectorAll('.react-grid-item').forEach(widget => {
-      widget.classList.remove('dragging-left', 'dragging-right', 'drag-rebound', 'widget-clean-shadows');
-    });
+    // Initialize drag velocity
+    dragVelocity.current = 0;
     
-    // Find the widget that's being dragged
-    setTimeout(() => {
-      const activeWidget = document.querySelector('.react-grid-item.react-draggable-dragging');
-      if (activeWidget) {
-        // Add a special class to ensure all shadows are removed
-        activeWidget.classList.add('widget-clean-shadows');
-        
-        // Force a repaint to ensure styles are applied immediately
-        void (activeWidget as HTMLElement).offsetHeight;
-      }
-    }, 0);
-    
-    // Initialize mouse position
-    lastMousePos.current = { x: event.clientX, y: event.clientY };
-    
-    // Reset direction at start
-    setDragDirection(null);
-    
-    // Log for debugging
-    console.log('Drag started for widget:', newItem.i);
+    // Initialize last mouse position with current mouse position
+    lastMousePos.current = {
+      x: 0, // Will be updated in the first handleDrag call
+      y: 0,
+      time: Date.now()
+    };
   };
   
   const handleDrag = (layout: LayoutItem[], oldItem: LayoutItem, newItem: LayoutItem, placeholder: LayoutItem, event: MouseEvent): void => {
+    // Make sure isDragging is set to true during dragging
+    if (!isDragging) {
+      setIsDragging(true);
+    }
+    
     // Skip if no mouse position
     if (!lastMousePos.current) return;
     
-    // Calculate direction based on mouse movement
+    // Calculate time difference in seconds since last update
+    const currentTime = Date.now();
+    const timeDelta = (currentTime - lastMousePos.current.time) / 1000; // Convert to seconds
+    
+    // Calculate direction and distance based on mouse movement
     const deltaX = event.clientX - lastMousePos.current.x;
     
-    // Only change direction if movement is significant
-    if (Math.abs(deltaX) > dragThreshold) {
-      const newDirection = deltaX < 0 ? 'left' : 'right';
-      
-      // Only update state if direction changed to avoid unnecessary renders
-      if (newDirection !== dragDirection) {
-        setDragDirection(newDirection);
-      }
-      
-      // Only get the currently dragging widget instead of all draggable ones
-      const draggingWidgets = document.querySelectorAll('.react-grid-item.react-draggable-dragging');
-      
-      // Apply direction classes immediately without waiting for state update
+    // Calculate velocity in pixels per second
+    // We use absolute value initially to get magnitude, then apply direction later
+    const rawVelocity = Math.abs(deltaX) / Math.max(timeDelta, 0.016); // Prevent division by zero (use 16ms min)
+    
+    // Apply some smoothing to the velocity using exponential moving average
+    // Increase responsiveness by using a higher weight for new velocity (0.4 instead of 0.3)
+    dragVelocity.current = dragVelocity.current * 0.6 + rawVelocity * 0.4;
+    
+    // Update last mouse position for next time
+    lastMousePos.current = {
+      x: event.clientX,
+      y: event.clientY,
+      time: currentTime
+    };
+    
+    // Determine direction - we still need this for consistency
+    const newDirection = deltaX < 0 ? 'left' : 'right';
+    
+    // Only update state if direction changed to avoid unnecessary renders
+    if (newDirection !== dragDirection) {
+      setDragDirection(newDirection);
+    }
+    
+    // Get the currently dragging widget
+    const draggingWidgets = document.querySelectorAll('.react-grid-item.react-draggable-dragging');
+    
+    // Only proceed if we have movement and a widget
+    if (Math.abs(deltaX) > 0 && draggingWidgets.length > 0) {
+      // Apply shadow cleaning and direction class
       draggingWidgets.forEach(widget => {
         // Make sure the shadow-cleaning class is applied
         widget.classList.add('widget-clean-shadows');
         
-        // Apply the direction class based on current movement
+        // Calculate rotation angle with better physics behavior
+        // Lower minimum velocity threshold to make rotation more responsive at low speeds
+        const minVelocity = 20; // Below this velocity, minimal rotation (lowered from 50)
+        const maxVelocity = 800; // Lower threshold for maximum rotation (from 1000)
+        
+        // Calculate normalized velocity between 0 and 1
+        const normalizedVelocity = Math.min(
+          Math.max((dragVelocity.current - minVelocity) / (maxVelocity - minVelocity), 0), 
+          1
+        );
+        
+        // Apply a cubic curve for more natural feeling at low speeds
+        // This will give subtler rotations at low speeds but accelerate more quickly at medium speeds
+        const easedVelocity = normalizedVelocity * normalizedVelocity * (3 - 2 * normalizedVelocity);
+        
+        // Calculate rotation based on velocity - minimum 0.5 degree, maximum maxRotation degrees
+        // Lowered minimum rotation to 0.5 degree for subtler effect at very low speeds
+        const rotationAngle = 0.5 + (maxRotation - 0.5) * easedVelocity;
+        
+        // Apply direction-based rotation directly to widget container
+        const widgetContainer = widget.querySelector('.widget-container') as HTMLElement;
+        if (widgetContainer) {
+          // Apply actual rotation value based on direction and velocity
+          const rotation = deltaX < 0 ? -rotationAngle : rotationAngle;
+          widgetContainer.style.transform = `rotate(${rotation}deg)`;
+          
+          // Store the last rotation as a CSS variable for the rebound animation
+          widgetContainer.style.setProperty('--last-rotation', `${rotation}deg`);
+          
+          // Adjust shadow based on rotation - deeper shadow for faster movement
+          const shadowBlur = 10 + Math.min(rotationAngle, 15);
+          const shadowOffset = deltaX < 0 ? -5 : 5;
+          widgetContainer.style.boxShadow = `${shadowOffset}px 8px ${shadowBlur}px rgba(0, 0, 0, ${0.12 + rotationAngle * 0.01})`;
+        }
+        
+        // Apply the direction class for any CSS effects we still want
         if (deltaX < 0) {
-          // Moving left
           widget.classList.remove('dragging-right');
           widget.classList.add('dragging-left');
         } else {
-          // Moving right
           widget.classList.remove('dragging-left');
           widget.classList.add('dragging-right');
         }
       });
-      
-      // Update last position after applying effect
-      lastMousePos.current = { x: event.clientX, y: event.clientY };
     }
   };
   
   const handleDragStop = (): void => {
-    // Find only widgets that were being dragged
-    const draggingWidgets = document.querySelectorAll('.react-grid-item.react-draggable-dragging, .react-grid-item.dragging-left, .react-grid-item.dragging-right, .react-grid-item.widget-clean-shadows');
-    
-    // If we couldn't find any dragging widgets, try with a more generic selector
-    if (draggingWidgets.length === 0) {
-      console.log('No actively dragging widgets found, searching for any with classes');
-      const directionWidgets = document.querySelectorAll('.react-grid-item.dragging-left, .react-grid-item.dragging-right');
-      
-      if (directionWidgets.length > 0) {
-        console.log('Found widgets with direction classes', directionWidgets.length);
-        
-        directionWidgets.forEach(widget => {
-          // Add rebound class and remove direction classes
-          widget.classList.remove('dragging-left', 'dragging-right', 'widget-clean-shadows');
-          widget.classList.add('drag-rebound');
-          
-          // Remove rebound class after animation completes
-          setTimeout(() => {
-            widget.classList.remove('drag-rebound');
-          }, 500);
-        });
-      }
-    } else {
-      console.log('Found actively dragging widgets', draggingWidgets.length);
-      
-      // Apply rebound class to found widgets
-      draggingWidgets.forEach(widget => {
-        // Add rebound class and remove direction classes
-        widget.classList.remove('dragging-left', 'dragging-right', 'widget-clean-shadows');
-        widget.classList.add('drag-rebound');
-        
-        // Remove rebound class after animation completes
-        setTimeout(() => {
-          widget.classList.remove('drag-rebound');
-        }, 500);
-      });
-    }
-    
-    // Reset direction
+    // Reset dragging state
+    setIsDragging(false);
     setDragDirection(null);
     
-    // Reset last mouse position
+    // Reset dragging velocity and position tracking
+    dragVelocity.current = 0;
     lastMousePos.current = null;
     
-    // Remove classes from body
-    document.body.classList.remove('dragging');
-    document.body.classList.remove('react-grid-layout--dragging');
+    // Get all widgets that might have been affected by dragging
+    const previouslyDraggedWidgets = document.querySelectorAll('.widget-clean-shadows, .dragging-left, .dragging-right, .react-draggable-dragging');
     
-    // Force save the current layout state to ensure it's preserved
-    const currentLayoutSnapshot = { ...layouts };
-    localStorage.setItem('boxento-layouts', JSON.stringify(currentLayoutSnapshot));
+    previouslyDraggedWidgets.forEach(widget => {
+      // Remove all dragging-related classes
+      widget.classList.remove('widget-clean-shadows', 'dragging-left', 'dragging-right');
+      
+      // Find the widget container that has the rotation applied
+      const widgetContainer = widget.querySelector('.widget-container') as HTMLElement;
+      if (widgetContainer) {
+        // Apply classes to indicate we want to animate back to zero
+        widgetContainer.classList.add('rebound-active', 'animating');
+        
+        // Make sure animation plays by forcing a repaint
+        void widgetContainer.offsetHeight;
+        
+        // Set up a handler to clean up after animation completes
+        const cleanupAfterAnimation = () => {
+          // Remove animation-related classes
+          widgetContainer.classList.remove('rebound-active', 'animating');
+          
+          // Explicitly set rotation to zero to ensure no residual rotation
+          widgetContainer.style.transform = 'rotate(0deg)';
+          
+          // Reset shadows to default
+          widgetContainer.style.boxShadow = '';
+          
+          // Clean up this event listener
+          widgetContainer.removeEventListener('animationend', cleanupAfterAnimation);
+        };
+        
+        // Listen for the animation end event
+        widgetContainer.addEventListener('animationend', cleanupAfterAnimation);
+        
+        // As a fallback, also set a timeout to ensure cleanup happens
+        // This handles cases where the animationend event might not fire
+        setTimeout(() => {
+          cleanupAfterAnimation();
+        }, 700); // Animation is 0.6s, so 700ms is safe
+      }
+    });
+    
+    // Log for debugging
+    console.log('Drag stopped, animation should play');
   };
   
   const handleResizeStart = (): void => {
@@ -926,7 +969,7 @@ function App() {
             
             <div className="desktop-view-container">
               <ResponsiveReactGridLayout
-                className="layout"
+                className={`layout ${isDragging ? 'is-dragging' : ''}`}
                 layouts={layouts}
                 breakpoints={breakpoints}
                 cols={cols}
