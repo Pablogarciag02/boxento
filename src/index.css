@@ -940,3 +940,26 @@ body.react-grid-layout--resizing .react-grid-item:not(.resizing) {
 .react-grid-item.widget-clean-shadows * {
   border-image: none !important;
 }
+
+/* Hide resize handles during dragging/resizing operations */
+.react-grid-item.react-draggable-dragging .react-resizable-handle,
+.react-grid-item.resizing .react-resizable-handle,
+.react-grid-item.widget-clean-shadows .react-resizable-handle {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+/* Also hide resize handles on all widgets when ANY widget is being dragged/resized */
+body.react-grid-layout--dragging .react-resizable-handle,
+body.react-grid-layout--resizing .react-resizable-handle {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Make sure the react-resizable-handle doesn't interfere with dragging */
+.react-grid-item.react-draggable-dragging .react-resizable-handle::after,
+.react-grid-item.resizing .react-resizable-handle::after {
+  border: none !important;
+  background: transparent !important;
+}
