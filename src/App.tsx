@@ -496,7 +496,6 @@ function App() {
   
   // Add state to track dragging direction and current dragged widget
   const [dragDirection, setDragDirection] = useState<'left' | 'right' | null>(null);
-  const [draggedWidgetId, setDraggedWidgetId] = useState<string | null>(null);
   const lastMousePos = useRef<{ x: number, y: number } | null>(null);
   const dragThreshold = 5; // Minimum mouse movement to determine direction
   
@@ -506,8 +505,22 @@ function App() {
     document.body.classList.add('dragging');
     document.body.classList.add('react-grid-layout--dragging');
     
-    // Store the widget ID being dragged
-    setDraggedWidgetId(newItem.i);
+    // Clean up any lingering animation classes first
+    document.querySelectorAll('.react-grid-item').forEach(widget => {
+      widget.classList.remove('dragging-left', 'dragging-right', 'drag-rebound', 'widget-clean-shadows');
+    });
+    
+    // Find the widget that's being dragged
+    setTimeout(() => {
+      const activeWidget = document.querySelector('.react-grid-item.react-draggable-dragging');
+      if (activeWidget) {
+        // Add a special class to ensure all shadows are removed
+        activeWidget.classList.add('widget-clean-shadows');
+        
+        // Force a repaint to ensure styles are applied immediately
+        void (activeWidget as HTMLElement).offsetHeight;
+      }
+    }, 0);
     
     // Initialize mouse position
     lastMousePos.current = { x: event.clientX, y: event.clientY };
@@ -516,7 +529,7 @@ function App() {
     setDragDirection(null);
     
     // Log for debugging
-    console.log('Drag started');
+    console.log('Drag started for widget:', newItem.i);
   };
   
   const handleDrag = (layout: LayoutItem[], oldItem: LayoutItem, newItem: LayoutItem, placeholder: LayoutItem, event: MouseEvent): void => {
@@ -530,65 +543,89 @@ function App() {
     if (Math.abs(deltaX) > dragThreshold) {
       const newDirection = deltaX < 0 ? 'left' : 'right';
       
-      // Only update if direction changed
+      // Only update state if direction changed to avoid unnecessary renders
       if (newDirection !== dragDirection) {
         setDragDirection(newDirection);
       }
       
-      // Update last position
+      // Only get the currently dragging widget instead of all draggable ones
+      const draggingWidgets = document.querySelectorAll('.react-grid-item.react-draggable-dragging');
+      
+      // Apply direction classes immediately without waiting for state update
+      draggingWidgets.forEach(widget => {
+        // Make sure the shadow-cleaning class is applied
+        widget.classList.add('widget-clean-shadows');
+        
+        // Apply the direction class based on current movement
+        if (deltaX < 0) {
+          // Moving left
+          widget.classList.remove('dragging-right');
+          widget.classList.add('dragging-left');
+        } else {
+          // Moving right
+          widget.classList.remove('dragging-left');
+          widget.classList.add('dragging-right');
+        }
+      });
+      
+      // Update last position after applying effect
       lastMousePos.current = { x: event.clientX, y: event.clientY };
     }
   };
   
   const handleDragStop = (): void => {
-    // Apply rebound class before removing direction class
-    if (draggedWidgetId) {
-      // Find the widget that was being dragged by ID
-      const widgetElement = document.querySelector(`.react-grid-item[data-grid*="i:${draggedWidgetId}"]`);
-      if (widgetElement) {
-        widgetElement.classList.add('drag-rebound');
+    // Find only widgets that were being dragged
+    const draggingWidgets = document.querySelectorAll('.react-grid-item.react-draggable-dragging, .react-grid-item.dragging-left, .react-grid-item.dragging-right, .react-grid-item.widget-clean-shadows');
+    
+    // If we couldn't find any dragging widgets, try with a more generic selector
+    if (draggingWidgets.length === 0) {
+      console.log('No actively dragging widgets found, searching for any with classes');
+      const directionWidgets = document.querySelectorAll('.react-grid-item.dragging-left, .react-grid-item.dragging-right');
+      
+      if (directionWidgets.length > 0) {
+        console.log('Found widgets with direction classes', directionWidgets.length);
+        
+        directionWidgets.forEach(widget => {
+          // Add rebound class and remove direction classes
+          widget.classList.remove('dragging-left', 'dragging-right', 'widget-clean-shadows');
+          widget.classList.add('drag-rebound');
+          
+          // Remove rebound class after animation completes
+          setTimeout(() => {
+            widget.classList.remove('drag-rebound');
+          }, 500);
+        });
+      }
+    } else {
+      console.log('Found actively dragging widgets', draggingWidgets.length);
+      
+      // Apply rebound class to found widgets
+      draggingWidgets.forEach(widget => {
+        // Add rebound class and remove direction classes
+        widget.classList.remove('dragging-left', 'dragging-right', 'widget-clean-shadows');
+        widget.classList.add('drag-rebound');
         
         // Remove rebound class after animation completes
         setTimeout(() => {
-          widgetElement.classList.remove('drag-rebound');
-        }, 500); // Match the animation duration in CSS
-      }
+          widget.classList.remove('drag-rebound');
+        }, 500);
+      });
     }
     
-    // Reset direction and dragged widget
+    // Reset direction
     setDragDirection(null);
-    setDraggedWidgetId(null);
     
     // Reset last mouse position
     lastMousePos.current = null;
     
-    // Remove classes
+    // Remove classes from body
     document.body.classList.remove('dragging');
     document.body.classList.remove('react-grid-layout--dragging');
     
     // Force save the current layout state to ensure it's preserved
     const currentLayoutSnapshot = { ...layouts };
     localStorage.setItem('boxento-layouts', JSON.stringify(currentLayoutSnapshot));
-    
-    // Log for debugging
-    console.log('Drag completed, layout saved');
   };
-  
-  // Apply drag direction classes to the dragged widget
-  useEffect(() => {
-    if (draggedWidgetId && dragDirection) {
-      // Find the dragged widget element
-      const widgetElement = document.querySelector(`.react-grid-item[data-grid*="i:${draggedWidgetId}"].react-draggable-dragging`);
-      
-      if (widgetElement) {
-        // Remove any existing direction classes
-        widgetElement.classList.remove('dragging-left', 'dragging-right');
-        
-        // Add the appropriate direction class
-        widgetElement.classList.add(`dragging-${dragDirection}`);
-      }
-    }
-  }, [draggedWidgetId, dragDirection]);
   
   const handleResizeStart = (): void => {
     document.body.classList.add('react-grid-layout--resizing');
@@ -826,6 +863,21 @@ function App() {
       </div>
     );
   };
+
+  // Clean up any lingering classes when component unmounts or if user navigates away
+  useEffect(() => {
+    return () => {
+      // Clean up body classes
+      document.body.classList.remove('dragging');
+      document.body.classList.remove('react-grid-layout--dragging');
+      document.body.classList.remove('react-grid-layout--resizing');
+      
+      // Clean up any widgets with lingering classes
+      document.querySelectorAll('.react-grid-item')?.forEach(widget => {
+        widget.classList.remove('dragging-left', 'dragging-right', 'drag-rebound');
+      });
+    };
+  }, []);
 
   return (
     <div className={`app ${theme === 'dark' ? 'dark' : ''}`} data-theme={theme}>
