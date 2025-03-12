@@ -519,7 +519,7 @@ function App() {
     };
   };
   
-  const handleDrag = (layout: LayoutItem[], oldItem: LayoutItem, newItem: LayoutItem, placeholder: LayoutItem, event: MouseEvent): void => {
+  const handleDrag = (_layout: LayoutItem[], _oldItem: LayoutItem, _newItem: LayoutItem, _placeholder: LayoutItem, event: MouseEvent): void => {
     // Make sure isDragging is set to true during dragging
     if (!isDragging) {
       setIsDragging(true);
