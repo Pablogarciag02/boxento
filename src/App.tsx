@@ -33,6 +33,7 @@ import { Changelog } from '@/components/Changelog'
 import { faviconService } from '@/lib/services/favicon'
 import { useAppSettings } from '@/context/AppSettingsContext'
 import { DashboardContextMenu } from '@/components/dashboard/DashboardContextMenu'
+import { DashboardSelector, Dashboard } from '@/components/dashboard/DashboardSelector'
 
 interface WidgetCategory {
   [category: string]: WidgetConfig[];
@@ -45,6 +46,9 @@ const cols = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
 // Create responsive grid layout with width provider - once, outside the component
 // This is important for performance as it prevents recreation on each render
 const ResponsiveReactGridLayout = WidthProvider(Responsive);
+
+// Define the sensitive fields constant
+const DEFAULT_SENSITIVE_FIELDS = ['apiKey', 'password', 'token', 'secret', 'credentials'];
 
 // Helper function to validate layout items
 const validateLayoutItem = (item: LayoutItem): LayoutItem => ({
@@ -371,6 +375,10 @@ function App() {
   // Track the last created widget for undo functionality
   const [lastCreatedWidgetId, setLastCreatedWidgetId] = useState<string | null>(null);
   
+  // Add state for managing multiple dashboards
+  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [currentDashboard, setCurrentDashboard] = useState<Dashboard | null>(null);
+  
   // Save widgets to storage (localStorage and Firestore if logged in)
   const saveWidgets = async (updatedWidgets: Widget[]): Promise<void> => {
     setWidgets(updatedWidgets);
@@ -382,15 +390,14 @@ function App() {
     updatedWidgets.forEach(widget => {
       if (widget.config && widget.id) {
         const configToSave = prepareWidgetConfigForSave(widget.config);
-        configManager.saveWidgetConfig(widget.id, configToSave);
+        configManager.saveWidgetConfig(widget.id, configToSave, DEFAULT_SENSITIVE_FIELDS, currentDashboard?.id);
       }
     });
     
     // Save widgets to Firestore when user is logged in
-    if (auth.currentUser) {
+    if (auth.currentUser && currentDashboard) {
       try {
-        await userDashboardService.saveWidgets(updatedWidgets);
-        console.log('Saved widget metadata to Firestore');
+        await userDashboardService.saveWidgets(updatedWidgets, currentDashboard.id);
       } catch (error) {
         console.error('Error saving widgets to Firestore:', error);
       }
@@ -406,7 +413,7 @@ function App() {
     localStorage.setItem('boxento-layouts', JSON.stringify(updatedLayouts));
     
     // Save to Firestore if logged in
-    if (auth.currentUser) {
+    if (auth.currentUser && currentDashboard) {
       if (debounce) {
         if (layoutUpdateTimeout.current !== null) {
           clearTimeout(layoutUpdateTimeout.current);
@@ -414,7 +421,7 @@ function App() {
         
         layoutUpdateTimeout.current = window.setTimeout(async () => {
           try {
-            await userDashboardService.saveLayouts(updatedLayouts);
+            await userDashboardService.saveLayouts(updatedLayouts, currentDashboard.id);
             console.log('Saved layouts to Firestore');
           } catch (error) {
             console.error('Error saving layouts to Firestore:', error);
@@ -422,7 +429,7 @@ function App() {
         }, 500);
       } else {
         try {
-          await userDashboardService.saveLayouts(updatedLayouts);
+          await userDashboardService.saveLayouts(updatedLayouts, currentDashboard.id);
           console.log('Saved layouts to Firestore immediately');
         } catch (error) {
           console.error('Error saving layouts to Firestore:', error);
@@ -598,7 +605,7 @@ function App() {
   // Delete widget function - refactored to reduce duplication
   const deleteWidget = async (widgetId: string): Promise<void> => {
     // Remove widget config from storage
-    await configManager.clearConfig(widgetId);
+    await configManager.clearConfig(widgetId, currentDashboard?.id);
     
     // Remove widget from state
     const updatedWidgets = widgets.filter(widget => widget.id !== widgetId);
@@ -661,10 +668,10 @@ function App() {
     
     // Save to configManager - excluding function properties
     const configToSave = prepareWidgetConfigForSave(newConfig);
-    configManager.saveWidgetConfig(widgetId, configToSave);
+    configManager.saveWidgetConfig(widgetId, configToSave, DEFAULT_SENSITIVE_FIELDS, currentDashboard?.id);
     
     // Save to Firestore if logged in
-    if (auth.currentUser) {
+    if (auth.currentUser && currentDashboard) {
       saveWidgets(updatedWidgets);
     }
   };
@@ -1170,6 +1177,334 @@ function App() {
     }
   };
   
+  // Load dashboards when authenticated
+  useEffect(() => {
+    // Add mock dashboards for testing
+    const mockDashboards = [
+      {
+        id: 'dashboard1',
+        name: 'Personal Dashboard',
+        createdAt: Date.now(),
+        lastModified: Date.now()
+      },
+      {
+        id: 'dashboard2',
+        name: 'Work Dashboard',
+        createdAt: Date.now(),
+        lastModified: Date.now()
+      },
+      {
+        id: 'dashboard3',
+        name: 'Project Dashboard',
+        createdAt: Date.now(),
+        lastModified: Date.now()
+      }
+    ];
+    
+    if (auth.currentUser) {
+      loadUserDashboards();
+    } else {
+      // For testing: use mock dashboards instead of just a single default one
+      setDashboards(mockDashboards);
+      setCurrentDashboard(mockDashboards[0]);
+    }
+  }, [auth.currentUser]);
+  
+  // Function to load user dashboards
+  const loadUserDashboards = async () => {
+    try {
+      await userDashboardService.migrateToDashboards();
+      const userDashboards = await userDashboardService.getDashboards();
+      
+      setDashboards(userDashboards);
+      
+      if (userDashboards.length > 0) {
+        // Set the first dashboard as the current dashboard
+        setCurrentDashboard(userDashboards[0]);
+        
+        // Load the dashboard data
+        await loadDashboardData(userDashboards[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading user dashboards:', error);
+      loadLocalData();
+    }
+  };
+  
+  // Function to handle dashboard changes
+  const handleDashboardChange = async (dashboardId: string) => {
+    const dashboard = dashboards.find(d => d.id === dashboardId);
+    if (dashboard) {
+      setCurrentDashboard(dashboard);
+      
+      // If we're authenticated, load from Firestore
+      if (auth.currentUser) {
+        await loadDashboardData(dashboardId);
+      } else {
+        // For testing: Load different mock data for each dashboard
+        await loadMockDashboardData(dashboardId);
+      }
+    }
+  };
+  
+  // Function to load mock dashboard data for development testing
+  const loadMockDashboardData = async (dashboardId: string) => {
+    // Get mock data for this dashboard from localStorage
+    const storageKey = `boxento-mock-dashboard-${dashboardId}`;
+    const dashboardData = localStorage.getItem(storageKey);
+    
+    if (dashboardData) {
+      // If we have saved mock data for this dashboard, use it
+      const parsed = JSON.parse(dashboardData);
+      setWidgets(parsed.widgets || getDefaultWidgets());
+      setLayouts(parsed.layouts || getDefaultLayouts());
+    } else {
+      // Create default data with variations based on dashboard ID
+      let defaultWidgets = getDefaultWidgets();
+      
+      // Customize the widgets based on dashboard ID
+      if (dashboardId === 'dashboard2') {
+        // Work dashboard - add different widgets
+        defaultWidgets = [
+          {
+            id: 'work-todo',
+            type: 'todo',
+            config: {
+              ...getWidgetConfigByType('todo'),
+              title: 'Work Tasks'
+            }
+          },
+          {
+            id: 'work-weather',
+            type: 'weather',
+            config: getWidgetConfigByType('weather')
+          },
+          {
+            id: 'work-notes',
+            type: 'notes',
+            config: {
+              ...getWidgetConfigByType('notes'),
+              defaultContent: 'Work notes 2x2'
+            }
+          }
+        ];
+      } else if (dashboardId === 'dashboard3') {
+        // Project dashboard
+        defaultWidgets = [
+          {
+            id: 'project-todo',
+            type: 'todo',
+            config: {
+              ...getWidgetConfigByType('todo'),
+              title: 'Project Tasks'
+            }
+          },
+          {
+            id: 'project-quick-links',
+            type: 'quick-links',
+            config: getWidgetConfigByType('quick-links')
+          },
+          {
+            id: 'project-notes',
+            type: 'notes',
+            config: {
+              ...getWidgetConfigByType('notes'),
+              defaultContent: 'Project notes'
+            }
+          }
+        ];
+      }
+      
+      // Generate layouts based on the widgets
+      const newLayouts = createDefaultLayoutsForWidgets(defaultWidgets);
+      
+      // Set the data
+      setWidgets(defaultWidgets);
+      setLayouts(newLayouts);
+      
+      // Save to localStorage for future use
+      localStorage.setItem(storageKey, JSON.stringify({
+        widgets: defaultWidgets,
+        layouts: newLayouts
+      }));
+    }
+  };
+  
+  // Function to create a new dashboard - modified to support non-authenticated use
+  const handleCreateDashboard = async (name: string) => {
+    try {
+      // Generate a unique ID
+      const dashboardId = `dashboard-${Date.now()}`;
+      
+      if (auth.currentUser) {
+        // Use Firestore if authenticated
+        const newDashboard = await userDashboardService.createDashboard(name);
+        setDashboards(prev => [...prev, newDashboard]);
+        setCurrentDashboard(newDashboard);
+        
+        // Initialize with default layouts and widgets
+        const defaultWidgets = getDefaultWidgets();
+        const defaultLayouts = getDefaultLayouts();
+        
+        await userDashboardService.saveWidgets(defaultWidgets, newDashboard.id);
+        await userDashboardService.saveLayouts(defaultLayouts, newDashboard.id);
+        
+        setWidgets(defaultWidgets);
+        setLayouts(defaultLayouts);
+      } else {
+        // For local testing without authentication
+        const newDashboard = {
+          id: dashboardId,
+          name,
+          createdAt: Date.now(),
+          lastModified: Date.now()
+        };
+        
+        setDashboards(prev => [...prev, newDashboard]);
+        setCurrentDashboard(newDashboard);
+        
+        // Create default data
+        const defaultWidgets = getDefaultWidgets();
+        const defaultLayouts = getDefaultLayouts();
+        
+        // Save to localStorage
+        localStorage.setItem(`boxento-mock-dashboard-${dashboardId}`, JSON.stringify({
+          widgets: defaultWidgets,
+          layouts: defaultLayouts
+        }));
+        
+        setWidgets(defaultWidgets);
+        setLayouts(defaultLayouts);
+      }
+    } catch (error) {
+      console.error('Error creating dashboard:', error);
+    }
+  };
+  
+  // Function to rename a dashboard - modified to support non-authenticated use
+  const handleRenameDashboard = async (id: string, name: string) => {
+    try {
+      if (auth.currentUser) {
+        // Use Firestore if authenticated
+        await userDashboardService.renameDashboard(id, name);
+      }
+      
+      // Update local state regardless of authentication
+      setDashboards(prev => 
+        prev.map(dashboard => 
+          dashboard.id === id ? { ...dashboard, name, lastModified: Date.now() } : dashboard
+        )
+      );
+      
+      // Update current dashboard if needed
+      if (currentDashboard?.id === id) {
+        setCurrentDashboard(prev => prev ? { ...prev, name, lastModified: Date.now() } : prev);
+      }
+    } catch (error) {
+      console.error('Error renaming dashboard:', error);
+      
+      // For local testing, still update the state even if there's an error with Firebase
+      if (!auth.currentUser) {
+        setDashboards(prev => 
+          prev.map(dashboard => 
+            dashboard.id === id ? { ...dashboard, name, lastModified: Date.now() } : dashboard
+          )
+        );
+        
+        if (currentDashboard?.id === id) {
+          setCurrentDashboard(prev => prev ? { ...prev, name, lastModified: Date.now() } : prev);
+        }
+      }
+    }
+  };
+  
+  // Function to delete a dashboard - modified to support non-authenticated use
+  const handleDeleteDashboard = async (id: string) => {
+    try {
+      if (auth.currentUser) {
+        // Use Firestore if authenticated
+        await userDashboardService.deleteDashboard(id);
+      } else {
+        // For local testing, remove from localStorage
+        localStorage.removeItem(`boxento-mock-dashboard-${id}`);
+      }
+      
+      // Remove from local state
+      const updatedDashboards = dashboards.filter(d => d.id !== id);
+      setDashboards(updatedDashboards);
+      
+      // If the deleted dashboard was the current one, switch to another
+      if (currentDashboard?.id === id && updatedDashboards.length > 0) {
+        setCurrentDashboard(updatedDashboards[0]);
+        
+        if (auth.currentUser) {
+          await loadDashboardData(updatedDashboards[0].id);
+        } else {
+          await loadMockDashboardData(updatedDashboards[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting dashboard:', error);
+    }
+  };
+  
+  // Function to load dashboard data
+  const loadDashboardData = async (dashboardId: string) => {
+    try {
+      // For authenticated users, load from Firestore
+      if (auth.currentUser) {
+        // Load widgets
+        const dashboardWidgets = await userDashboardService.loadWidgets(dashboardId);
+        
+        if (dashboardWidgets && dashboardWidgets.length > 0) {
+          // Load widget configurations with proper type
+          const allConfigs: { [widgetId: string]: Record<string, unknown> } = 
+            await configManager.getConfigs(true, dashboardId);
+          
+          // Combine widgets with their configurations
+          const widgetsWithConfigs = dashboardWidgets.map(widget => {
+            const configForWidget = widget.id ? (allConfigs[widget.id] || {}) : {};
+            return {
+              ...widget,
+              config: configForWidget
+            } as Widget;
+          });
+          
+          setWidgets(widgetsWithConfigs);
+          
+          // Load layouts
+          const dashboardLayouts = await userDashboardService.loadLayouts(dashboardId);
+          
+          if (dashboardLayouts) {
+            setLayouts(dashboardLayouts);
+          } else {
+            // Create default layouts if none found
+            const defaultLayouts = createDefaultLayoutsForWidgets(widgetsWithConfigs);
+            setLayouts(defaultLayouts);
+            await userDashboardService.saveLayouts(defaultLayouts, dashboardId);
+          }
+        } else {
+          // No widgets found, set defaults
+          const defaultWidgets = getDefaultWidgets();
+          const defaultLayouts = getDefaultLayouts();
+          
+          setWidgets(defaultWidgets);
+          setLayouts(defaultLayouts);
+          
+          // Save defaults to Firestore
+          await userDashboardService.saveWidgets(defaultWidgets, dashboardId);
+          await userDashboardService.saveLayouts(defaultLayouts, dashboardId);
+        }
+      } else {
+        // For non-authenticated users, load from localStorage
+        loadLocalData();
+      }
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      loadLocalData();
+    }
+  };
+  
   // Only render the UI when data is loaded
   if (!isDataLoaded) {
     return (
@@ -1202,9 +1537,16 @@ function App() {
       <div className="fixed top-0 z-50 w-full backdrop-blur-sm app-header">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center">
-            <a href="/" rel="noopener noreferrer" className="text-gray-900 dark:text-white hover:text-gray-700 transition-colors">
-              <h1 className="text-lg font-semibold mr-3">Boxento</h1>
-            </a>
+            {/* Always show Dashboard Selector regardless of auth state */}
+            <DashboardSelector
+              currentDashboard={currentDashboard}
+              dashboards={dashboards}
+              onDashboardChange={handleDashboardChange}
+              onCreateDashboard={handleCreateDashboard}
+              onRenameDashboard={handleRenameDashboard}
+              onDeleteDashboard={handleDeleteDashboard}
+            />
+            
             {/* Sync indicator */}
             <TooltipProvider>
               <Tooltip>

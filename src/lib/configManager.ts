@@ -32,20 +32,30 @@ export const configManager = {
    * @param widgetId - Unique identifier for the widget
    * @param config - Configuration object to save
    * @param sensitiveFields - Optional array of field names that should be encrypted
+   * @param dashboardId - Optional dashboard ID for multi-dashboard support
    */
-  saveWidgetConfig: async (widgetId: string, config: Record<string, unknown>, sensitiveFields = DEFAULT_SENSITIVE_FIELDS): Promise<void> => {
+  saveWidgetConfig: async (
+    widgetId: string, 
+    config: Record<string, unknown>, 
+    sensitiveFields = DEFAULT_SENSITIVE_FIELDS,
+    dashboardId?: string
+  ): Promise<void> => {
     try {
       // Process sensitive fields (like API keys) for encryption
       const processedConfig = encryptionUtils.processObjectForStorage(config, sensitiveFields);
       
       // If user is logged in, save to Firestore
       if (auth.currentUser) {
-        await userDashboardService.saveWidgetConfig(widgetId, processedConfig);
+        await userDashboardService.saveWidgetConfig(widgetId, processedConfig, dashboardId);
       } else {
         // Fallback to localStorage
-        const configs = configManager.getConfigsFromLocalStorage();
+        const storageKey = dashboardId 
+          ? `boxento-widget-configs-${dashboardId}` 
+          : 'boxento-widget-configs';
+          
+        const configs = configManager.getConfigsFromLocalStorage(dashboardId);
         configs[widgetId] = processedConfig;
-        localStorage.setItem('boxento-widget-configs', JSON.stringify(configs));
+        localStorage.setItem(storageKey, JSON.stringify(configs));
       }
     } catch (e) {
       console.error('Error saving widget configuration', e);
@@ -57,20 +67,25 @@ export const configManager = {
    * 
    * @param widgetId - Unique identifier for the widget
    * @param sensitiveFields - Optional array of field names that should be decrypted
+   * @param dashboardId - Optional dashboard ID for multi-dashboard support
    * @returns The widget's configuration or null if not found
    */
-  getWidgetConfig: async (widgetId: string, sensitiveFields = DEFAULT_SENSITIVE_FIELDS): Promise<Record<string, unknown> | null> => {
+  getWidgetConfig: async (
+    widgetId: string, 
+    sensitiveFields = DEFAULT_SENSITIVE_FIELDS, 
+    dashboardId?: string
+  ): Promise<Record<string, unknown> | null> => {
     try {
       let config: Record<string, unknown> | null = null;
       
       // If user is logged in, try to get from Firestore
       if (auth.currentUser) {
-        config = await userDashboardService.loadWidgetConfig(widgetId);
+        config = await userDashboardService.loadWidgetConfig(widgetId, dashboardId);
       }
       
       // If no config from Firestore or user not logged in, try localStorage
       if (!config) {
-        const configs = configManager.getConfigsFromLocalStorage();
+        const configs = configManager.getConfigsFromLocalStorage(dashboardId);
         config = configs[widgetId] || null;
       }
       
@@ -91,15 +106,19 @@ export const configManager = {
    * Get all stored widget configurations
    * 
    * @param decryptSensitiveFields - Whether to decrypt sensitive fields in all configs
+   * @param dashboardId - Optional dashboard ID for multi-dashboard support
    * @returns Object containing all widget configurations
    */
-  getConfigs: async (decryptSensitiveFields = false): Promise<WidgetConfigStore> => {
+  getConfigs: async (
+    decryptSensitiveFields = false, 
+    dashboardId?: string
+  ): Promise<WidgetConfigStore> => {
     try {
       let configs: WidgetConfigStore = {};
       
       // If user is logged in, try to get from Firestore
       if (auth.currentUser) {
-        const firestoreConfigs = await userDashboardService.loadAllWidgetConfigs();
+        const firestoreConfigs = await userDashboardService.loadAllWidgetConfigs(dashboardId);
         if (firestoreConfigs) {
           configs = firestoreConfigs;
         }
@@ -107,7 +126,7 @@ export const configManager = {
       
       // If no configs from Firestore or user not logged in, try localStorage
       if (Object.keys(configs).length === 0) {
-        configs = configManager.getConfigsFromLocalStorage();
+        configs = configManager.getConfigsFromLocalStorage(dashboardId);
       }
       
       if (!decryptSensitiveFields) return configs;
@@ -134,10 +153,16 @@ export const configManager = {
   
   /**
    * Get configs from localStorage (helper method)
+   * 
+   * @param dashboardId - Optional dashboard ID for multi-dashboard support
    */
-  getConfigsFromLocalStorage: (): WidgetConfigStore => {
+  getConfigsFromLocalStorage: (dashboardId?: string): WidgetConfigStore => {
     try {
-      const stored = localStorage.getItem('boxento-widget-configs');
+      const storageKey = dashboardId 
+        ? `boxento-widget-configs-${dashboardId}` 
+        : 'boxento-widget-configs';
+        
+      const stored = localStorage.getItem(storageKey);
       return stored ? JSON.parse(stored) : {};
     } catch (e) {
       console.error('Error parsing localStorage configs', e);
@@ -149,18 +174,23 @@ export const configManager = {
    * Clear a widget's configuration from storage
    * 
    * @param widgetId - Unique identifier for the widget to clear
+   * @param dashboardId - Optional dashboard ID for multi-dashboard support
    */
-  clearConfig: async (widgetId: string): Promise<void> => {
+  clearConfig: async (widgetId: string, dashboardId?: string): Promise<void> => {
     try {
       // If user is logged in, delete from Firestore
       if (auth.currentUser) {
-        await userDashboardService.deleteWidgetConfig(widgetId);
+        await userDashboardService.deleteWidgetConfig(widgetId, dashboardId);
       }
       
       // Also clear from localStorage
-      const configs = configManager.getConfigsFromLocalStorage();
+      const storageKey = dashboardId 
+        ? `boxento-widget-configs-${dashboardId}` 
+        : 'boxento-widget-configs';
+        
+      const configs = configManager.getConfigsFromLocalStorage(dashboardId);
       delete configs[widgetId];
-      localStorage.setItem('boxento-widget-configs', JSON.stringify(configs));
+      localStorage.setItem(storageKey, JSON.stringify(configs));
     } catch (e) {
       console.error('Error clearing widget configuration', e);
     }
@@ -168,18 +198,24 @@ export const configManager = {
   
   /**
    * Clear all widget configurations from storage
+   * 
+   * @param dashboardId - Optional dashboard ID for multi-dashboard support
    */
-  clearAllConfigs: async (): Promise<void> => {
+  clearAllConfigs: async (dashboardId?: string): Promise<void> => {
     try {
       // Clear from localStorage
-      localStorage.removeItem('boxento-widget-configs');
+      const storageKey = dashboardId 
+        ? `boxento-widget-configs-${dashboardId}` 
+        : 'boxento-widget-configs';
+        
+      localStorage.removeItem(storageKey);
       
       // If user is logged in, clear from Firestore
       if (auth.currentUser) {
-        const configs = await userDashboardService.loadAllWidgetConfigs();
+        const configs = await userDashboardService.loadAllWidgetConfigs(dashboardId);
         if (configs) {
           for (const widgetId of Object.keys(configs)) {
-            await userDashboardService.deleteWidgetConfig(widgetId);
+            await userDashboardService.deleteWidgetConfig(widgetId, dashboardId);
           }
         }
       }
