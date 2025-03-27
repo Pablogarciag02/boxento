@@ -744,7 +744,7 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ width = 2, height = 2, 
         </div>
         
         <div className="flex flex-col items-center">
-          <span className="text-6xl font-bold text-rose-500">{dayOfMonth}</span>
+          <span className="text-6xl font-bold text-blue-500">{dayOfMonth}</span>
           <span className="text-sm">{month}</span>
         </div>
         
@@ -848,44 +848,53 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ width = 2, height = 2, 
     )
   }
 
+  // Add this with other state declarations at the top of the component
+  const [visibleStartDate, setVisibleStartDate] = useState(() => {
+    const today = new Date()
+    const start = new Date(today)
+    const startDay = localConfig.startDay === 'monday' ? 1 : 0
+    // Go to the start of the current week
+    start.setDate(today.getDate() - today.getDay() + (startDay === 1 ? 1 : 0))
+    return start
+  })
+
   /**
    * Renders a monthly view for wide widgets (3x2) centered around the current/selected date
    * 
    * @returns Monthly view for wide layouts
    */
   const renderStandardCalendar = () => {
-    // Get the month and day from the currently selected date
     const month = selectedDate.getMonth()
-    const currentDay = selectedDate.getDate()
-    
-    // Adjust first day of week based on settings
     const startDay = localConfig.startDay === 'monday' ? 1 : 0
-    
-    // Day names based on start day setting - use shorter abbreviations
     const dayNames = startDay === 1 
       ? ['M', 'T', 'W', 'T', 'F', 'S', 'S']
       : ['S', 'M', 'T', 'W', 'T', 'F', 'S']
     
-    // Calculate visible date range - we'll show 2 weeks (14 days)
-    // Position selectedDate roughly in the middle
-    const startDate = new Date(selectedDate)
-    startDate.setDate(currentDay - 7) // Go back 7 days from selected date
-    
-    // Create array of dates to display (14 days)
+    // Create array of dates to display (14 days) based on visibleStartDate
     const visibleDates = Array.from({ length: 14 }, (_, i) => {
-      const date = new Date(startDate)
-      date.setDate(startDate.getDate() + i)
+      const date = new Date(visibleStartDate)
+      date.setDate(visibleStartDate.getDate() + i)
       return date
     })
+
+    // Get events for the selected date
+    const selectedDateEvents = events.filter(event => {
+      if (!event.start) return false;
+      const eventDate = new Date(event.start);
+      return eventDate.getDate() === selectedDate.getDate() &&
+             eventDate.getMonth() === selectedDate.getMonth() &&
+             eventDate.getFullYear() === selectedDate.getFullYear();
+    });
     
     return (
       <div ref={widgetRef} className="h-full flex flex-col">
+        {/* Calendar header */}
         <div className="flex justify-between items-center mb-3">
           <button 
             onClick={() => {
-              const newDate = new Date(selectedDate)
-              newDate.setDate(selectedDate.getDate() - 7)
-              setSelectedDate(newDate)
+              const newStart = new Date(visibleStartDate)
+              newStart.setDate(visibleStartDate.getDate() - 7)
+              setVisibleStartDate(newStart)
             }}
             className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700"
             aria-label="Previous week"
@@ -899,6 +908,10 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ width = 2, height = 2, 
                 const today = new Date();
                 setDate(today);
                 setSelectedDate(today);
+                // Reset visible dates to current week
+                const start = new Date(today)
+                start.setDate(today.getDate() - today.getDay() + (startDay === 1 ? 1 : 0))
+                setVisibleStartDate(start)
               }}
               className="px-1.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900 dark:hover:bg-opacity-20 rounded"
               aria-label="Today"
@@ -913,9 +926,9 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ width = 2, height = 2, 
           
           <button 
             onClick={() => {
-              const newDate = new Date(selectedDate)
-              newDate.setDate(selectedDate.getDate() + 7)
-              setSelectedDate(newDate)
+              const newStart = new Date(visibleStartDate)
+              newStart.setDate(visibleStartDate.getDate() + 7)
+              setVisibleStartDate(newStart)
             }}
             className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700"
             aria-label="Next week"
@@ -923,91 +936,144 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ width = 2, height = 2, 
             <ChevronRight size={16} />
           </button>
         </div>
-        
-        <div className="grid grid-cols-7 gap-x-2 gap-y-1.5 flex-1">
-          {/* Day name headers - simplified */}
-          {dayNames.map((day) => (
-            <div 
-              key={day} 
-              className="text-xs text-center text-gray-500 dark:text-gray-400 font-medium"
-            >
-              {day}
-            </div>
-          ))}
-          
-          {/* Calendar days - now showing 2 weeks centered around selected date */}
-          {visibleDates.map((date, index) => {
-            const day = date.getDate()
-            const isToday = new Date().toDateString() === date.toDateString()
-            const isCurrentMonth = date.getMonth() === month
-            const isSelected = selectedDate.toDateString() === date.toDateString()
-            
-            // Check if this day has events
-            const dayEvents = events.filter(event => {
-              if (!event.start) return false;
-              const eventDate = new Date(event.start);
-              return eventDate.getDate() === date.getDate() &&
-                     eventDate.getMonth() === date.getMonth() &&
-                     eventDate.getFullYear() === date.getFullYear();
-            });
-            
-            return (
-              <div 
-                key={`day-${index}`} 
-                className={`flex flex-col items-center cursor-pointer`}
-                onClick={() => {
-                  setSelectedDate(date);
-                }}
-              >
-                <div className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
-                  isToday 
-                    ? 'bg-blue-500 text-white hover:bg-blue-600'
-                    : isSelected
-                      ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                } ${
-                  !isCurrentMonth ? 'text-gray-400 dark:text-gray-600' : ''
-                }`}>
+
+        {/* Rest of the component remains the same */}
+        <div className="flex flex-1 gap-4">
+          {/* Left side - Calendar */}
+          <div className="w-3/5">
+            <div className="grid grid-cols-7 gap-x-2 gap-y-1.5">
+              {/* Day headers remain the same */}
+              {dayNames.map((day) => (
+                <div 
+                  key={day} 
+                  className="text-xs text-center text-gray-500 dark:text-gray-400 font-medium"
+                >
                   {day}
                 </div>
+              ))}
+              
+              {/* Calendar days - now with fixed visible dates */}
+              {visibleDates.map((date, index) => {
+                const day = date.getDate()
+                const isToday = new Date().toDateString() === date.toDateString()
+                const isCurrentMonth = date.getMonth() === month
+                const isSelected = selectedDate.toDateString() === date.toDateString()
                 
-                {dayEvents.length > 0 && (
-                  <div className="flex mt-1 space-x-0.5">
+                const dayEvents = events.filter(event => {
+                  if (!event.start) return false;
+                  const eventDate = new Date(event.start);
+                  return eventDate.getDate() === date.getDate() &&
+                         eventDate.getMonth() === date.getMonth() &&
+                         eventDate.getFullYear() === date.getFullYear();
+                });
+                
+                return (
+                  <div 
+                    key={`day-${index}`} 
+                    className={`flex flex-col items-center cursor-pointer`}
+                    onClick={() => setSelectedDate(date)}
+                  >
+                    <div className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
+                      isToday 
+                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                        : isSelected
+                          ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200'
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                    } ${
+                      !isCurrentMonth ? 'text-gray-400 dark:text-gray-600' : ''
+                    }`}>
+                      {day}
+                    </div>
+                    
                     {dayEvents.length > 0 && (
-                      <div 
-                        className={`h-1 w-1 rounded-full ${
-                          isCurrentMonth ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'
-                        }`}
-                      ></div>
+                      <div className="flex mt-0.5 space-x-0.5">
+                        <div 
+                          className={`h-1 w-1 rounded-full ${
+                            isCurrentMonth ? 'bg-blue-500 dark:bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'
+                          }`}
+                        ></div>
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-        
-        {/* Selected date preview */}
-        <div className="mt-auto pt-2 border-t border-gray-100 dark:border-gray-800">
-          <div className="flex justify-between items-center text-xs">
-            <div className="font-medium">
-              {selectedDate.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' })}
+                )
+              })}
             </div>
-            {(() => {
-              const dayEvents = events.filter(event => {
-                if (!event.start) return false;
-                const eventDate = new Date(event.start);
-                return eventDate.getDate() === selectedDate.getDate() &&
-                       eventDate.getMonth() === selectedDate.getMonth() &&
-                       eventDate.getFullYear() === selectedDate.getFullYear();
-              });
-              
-              return dayEvents.length > 0 ? (
-                <div className="text-blue-500">{dayEvents.length} event{dayEvents.length !== 1 ? 's' : ''}</div>
+          </div>
+
+          {/* Right side - Events */}
+          <div className="w-2/5 border-l border-gray-100 dark:border-gray-800 pl-3 h-full flex flex-col">
+            {/* Fixed header */}
+            <div className="flex-shrink-0 mb-2 pb-1 border-b border-gray-100 dark:border-gray-700">
+              <div className="text-xs font-medium">
+                {selectedDate.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </div>
+            </div>
+            
+            {/* Events as accordion with expand/collapse functionality */}
+            <div className="flex-1 flex flex-col">
+              {selectedDateEvents.length > 0 ? (
+                <div className="space-y-2 pr-2">
+                  {selectedDateEvents.map((event, index) => (
+                    <div 
+                      key={index}
+                      className="text-xs p-2 rounded-lg bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 border border-blue-100 dark:border-blue-800"
+                    >
+                      <div className="text-blue-500 dark:text-blue-400 text-2xs font-medium mb-0.5">
+                        {formatTimeRange(event.time)}
+                      </div>
+                      <div className="font-medium">{event.title}</div>
+                      {event.location && (
+                        <div className="text-gray-500 dark:text-gray-400 text-2xs mt-0.5 truncate">
+                          {event.location}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div className="text-gray-400">No events</div>
-              );
-            })()}
+                <div className="text-xs text-gray-400 dark:text-gray-500 italic py-2">
+                  No events
+                </div>
+              )}
+              
+              {/* Add a "Show More" toggle if we have events */}
+              {selectedDateEvents.length > 0 && (
+                <button 
+                  className="mt-2 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium self-center"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    // Just log for now to see if the button is working
+                    console.log("Show more clicked");
+                    // Toggle between showing all events and just a few
+                    const testEvents = document.querySelectorAll('.test-event');
+                    testEvents.forEach(el => {
+                      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+                    });
+                  }}
+                >
+                  Show more events
+                </button>
+              )}
+              
+              {/* Static test events that toggle visibility when "Show More" is clicked */}
+              <div className="space-y-2 pr-2 mt-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div 
+                    key={`test-${i}`}
+                    className="test-event text-xs p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800"
+                    style={{ display: 'none' }} // Initially hidden
+                  >
+                    <div className="text-orange-500 dark:text-orange-400 text-2xs font-medium mb-0.5">
+                      {new Date().getHours() + i}:00 - {new Date().getHours() + i}:30 
+                    </div>
+                    <div className="font-medium">Test Event {i + 1}</div>
+                    <div className="text-gray-500 dark:text-gray-400 text-2xs mt-0.5">
+                      This is a test event
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1534,10 +1600,19 @@ const CalendarWidget: React.FC<CalendarWidgetProps> = ({ width = 2, height = 2, 
     }
   }
 
+  // Add this effect after other useEffects
+  useEffect(() => {
+    const today = new Date()
+    const start = new Date(today)
+    const startDay = localConfig.startDay === 'monday' ? 1 : 0
+    start.setDate(today.getDate() - today.getDay() + (startDay === 1 ? 1 : 0))
+    setVisibleStartDate(start)
+  }, [localConfig.startDay])
+
   return (
     <div 
       ref={widgetRef} 
-      className="widget-container h-full flex flex-col"
+      className="widget-container h-[300px] flex flex-col"
     >
       <WidgetHeader 
         title="Calendar" 
